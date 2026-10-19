@@ -1,4 +1,4 @@
-import {PAYMENTS, STORAGE_KEY, validateExpenses, parseBackup, monthlySummary} from './model.js';
+import {PAYMENTS, LEGACY_PAYMENTS, STORAGE_KEY, validateExpenses, parseBackup, monthlySummary} from './model.js';
 const $ = selector => document.querySelector(selector);
 const form = $('#expense-form');
 const today = new Date();
@@ -20,7 +20,17 @@ function commit(next, recovery = false) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); expenses = next; storageHealthy = true; return true; }
   catch { message('저장 공간이 부족하거나 브라우저 저장이 차단되었습니다. 변경 사항을 저장하지 못했습니다.'); return false; }
 }
+function paymentOptions(current) {
+  const select = form.elements.payment;
+  select.replaceChildren(...PAYMENTS.map(payment => new Option(payment, payment)));
+  if (LEGACY_PAYMENTS.includes(current)) {
+    select.add(new Option(`${current} (기존 기록)`, current));
+  }
+  if (current) select.value = current;
+}
+paymentOptions();
 function resetForm() {
+  paymentOptions();
   editingId = null; form.reset(); form.elements.date.value = localDate;
   $('#form-title').textContent = '지출 등록'; form.querySelector('[type=submit]').textContent = '등록하기'; $('#cancel').hidden = true;
 }
@@ -28,7 +38,7 @@ function cell(row, text) { const td = document.createElement('td'); td.textConte
 function render() {
   const {selected, totals, total} = monthlySummary(expenses, $('#month').value);
   $('#summary').replaceChildren();
-  for (const [label, value] of [['월간 총 지출', total], ...PAYMENTS.map(p => [p, totals[p]])]) {
+  for (const [label, value] of [['월간 총 지출', total], ...PAYMENTS.map(p => [p, totals[p]]), ...LEGACY_PAYMENTS.filter(p => selected.some(item => item.payment === p)).map(p => [`${p} (기존 기록)`, totals[p]])]) {
     const card = document.createElement('div'); card.className = 'summary-card';
     const title = document.createElement('span'); title.textContent = label;
     const amount = document.createElement('strong'); amount.textContent = money(value); card.append(title, amount); $('#summary').append(card);
@@ -42,6 +52,7 @@ function render() {
       button.addEventListener('click', () => {
         if (action === '수정') {
           editingId = item.id;
+          paymentOptions(item.payment);
           for (const key of ['date', 'description', 'amount', 'payment']) form.elements[key].value = item[key];
           $('#form-title').textContent = '지출 수정'; form.querySelector('[type=submit]').textContent = '수정 저장'; $('#cancel').hidden = false; form.elements.description.focus();
         } else if (confirm(`“${item.description}” 지출을 삭제할까요?`)) {
