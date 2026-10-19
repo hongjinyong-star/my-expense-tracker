@@ -13,3 +13,13 @@ test('손상된 백업, 중복 ID, 잘못된 값 거부', () => {
  for (const patch of [{amount:0},{amount:-1},{amount:1.5},{amount:'100'},{date:'2026-02-30'},{description:' '},{payment:'unknown'},{id:''}]) assert.throws(()=>validateExpenses([{...expense,...patch}]));
 });
 test('실제 달력 날짜 검사',()=>{assert.equal(validDate('2024-02-29'),true);assert.equal(validDate('2025-02-29'),false);assert.equal(validDate('0000-01-01'),false);});
+test('v1.1과 과거 결제수단 혼합 검증 및 백업에서 금액·날짜 보존', () => {
+ const payments = ['삼성카드','KB카드','수원페이','현금','계좌이체','기타','신용카드','체크카드'];
+ const items = payments.map((payment, index) => ({...expense, id:String(index), date:'2024-02-29', amount:index+1, payment}));
+ assert.deepEqual(validateExpenses(items), items);
+ assert.deepEqual(parseBackup(JSON.stringify({version:1, expenses:items})), items);
+ const summary = monthlySummary([...items, {...expense,id:'outside',date:'2024-03-01'}], '2024-02');
+ assert.equal(summary.total,36);
+ assert.deepEqual(summary.totals, Object.fromEntries(payments.map((p,i)=>[p,i+1])));
+ assert.deepEqual(monthlySummary(items,'2025-01').totals, Object.fromEntries(payments.map(p=>[p,0])));
+});
